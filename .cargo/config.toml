@@ -1,0 +1,8 @@
+# Sets target by default
+[build]
+target = "thumbv6m-none-eabi"
+
+# sets codegen and uses link.x as linker
+[target.thumbv6m-none-eabi]
+rustflags = ["-C", "link-arg=-Tlink.x"]
+runner = "elf2uf2-rs -d"
