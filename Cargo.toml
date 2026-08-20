@@ -16,5 +16,5 @@ name = "rp2040hal"
 test = false
 bench = false
 
-[[lib]]
+[lib]
 test = false

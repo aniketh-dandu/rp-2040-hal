@@ -9,6 +9,7 @@ pub static BOOT_LOADER: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
 // Halts processor on panic
 use cortex_m_rt::entry;
+use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use panic_halt as _;
 use rp2040_pac::{self};
 use rp2040hal::Gpio;
@@ -30,22 +31,27 @@ fn main() -> ! {
         || peripherals.RESETS.reset_done().read().pads_bank0() == false
     {}
 
+    // TODO: Handle result of method
+    let mut led_pin: Gpio = Gpio::new(25, &peripherals);
+    let _ = led_pin.init();
+    let _ = led_pin.set_high();
+
     // Set the pin function to SIO (Single-Cycle I/O)
-    peripherals
-        .IO_BANK0
-        .gpio(25)
-        .gpio_ctrl()
-        .write(|w| unsafe { w.funcsel().sio().bits(5) });
-    // Enable output on pin
-    peripherals
-        .SIO
-        .gpio_oe_set()
-        .write(|w| unsafe { w.bits(1 << 25) });
-    // Write output value
-    peripherals
-        .SIO
-        .gpio_out_set()
-        .write(|w| unsafe { w.bits(1 << 25) });
+    // peripherals
+    //     .IO_BANK0
+    //     .gpio(25)
+    //     .gpio_ctrl()
+    //     .write(|w| unsafe { w.funcsel().sio().bits(5) });
+    // // Enable output on pin
+    // peripherals
+    //     .SIO
+    //     .gpio_oe_set()
+    //     .write(|w| unsafe { w.bits(1 << 25) });
+    // // Write output value
+    // peripherals
+    //     .SIO
+    //     .gpio_out_set()
+    //     .write(|w| unsafe { w.bits(1 << 25) });
 
     let mut timer_high: u32;
     let mut next_high: u32;
@@ -72,10 +78,11 @@ fn main() -> ! {
         if (time - prev_time) > 250000 {
             prev_time = time;
             // Use XOR instead of separate call to clr and set
-            peripherals
-                .SIO
-                .gpio_out_xor()
-                .write(|w| unsafe { w.bits(1 << 25) });
+            // peripherals
+            //     .SIO
+            //     .gpio_out_xor()
+            //     .write(|w| unsafe { w.bits(1 << 25) });
+            let _ = led_pin.toggle();
         }
     }
 }

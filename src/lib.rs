@@ -1,6 +1,7 @@
 #![no_std]
 
-use cortex_m::peripheral;
+// TODO: Come up with better model of ownership for peripherals object rather than borrowing for single GPIO pin
+
 use embedded_hal::digital::{Error, ErrorKind, ErrorType, OutputPin, StatefulOutputPin};
 use rp2040_pac::Peripherals;
 
@@ -15,15 +16,16 @@ pub enum GpioError {
 }
 
 // Borrow peripherals to write registers
-pub struct Gpio {
-    peripherals: &Peripherals,
+// Add lifetime for borrow
+pub struct Gpio<'a> {
+    peripherals: &'a Peripherals,
     pin_num: u8,
     initialized: bool,
 }
 
 // Self-defined methods
-impl Gpio {
-    pub fn new(pin_num: u8, peripherals: &Peripherals) -> Self {
+impl<'a> Gpio<'a> {
+    pub fn new(pin_num: u8, peripherals: &'a Peripherals) -> Self {
         Self {
             pin_num: pin_num,
             peripherals: peripherals,
@@ -58,11 +60,11 @@ impl Error for GpioError {
 }
 
 // Define error type for GPIO as GpioError
-impl ErrorType for Gpio {
+impl ErrorType for Gpio<'_> {
     type Error = GpioError;
 }
 
-impl OutputPin for Gpio {
+impl OutputPin for Gpio<'_> {
     fn set_low(&mut self) -> Result<(), Self::Error> {
         // TODO: add checks for output type and if initialized
         if !self.initialized {
@@ -74,15 +76,16 @@ impl OutputPin for Gpio {
             .gpio_out_set()
             .write(|w| unsafe { w.bits(0 << self.pin_num) }))
     }
-    fn set_high(&mut self) -> Result<(), Self: Error> {
-        Ok(peripherals
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        Ok(self
+            .peripherals
             .SIO
             .gpio_out_set()
             .write(|w| unsafe { w.bits(1 << self.pin_num) }))
     }
 }
 
-impl StatefulOutputPin for Gpio {
+impl StatefulOutputPin for Gpio<'_> {
     fn is_set_high(&mut self) -> Result<bool, Self::Error> {
         Ok(self.peripherals.SIO.gpio_out().read().bits() >> self.pin_num & 1 == 1)
     }
