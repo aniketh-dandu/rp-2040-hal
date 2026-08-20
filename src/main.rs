@@ -11,6 +11,7 @@ pub static BOOT_LOADER: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 use cortex_m_rt::entry;
 use panic_halt as _;
 use rp2040_pac::{self};
+use rp2040hal::Gpio;
 
 // entry point after RAM initialization
 // NOTE: never ending function, returns !
@@ -53,6 +54,9 @@ fn main() -> ! {
     let mut time: u64;
 
     loop {
+        // Reading lower register locks higher register
+        // Read HIGH then LOW, if HIGH has changed, read LOW again to lock the HIGH reg
+        // Repeat until HIGH matches when read before and after lock
         timer_high = peripherals.TIMER.timerawh().read().bits();
         timer_low = peripherals.TIMER.timerawl().read().bits();
         next_high = peripherals.TIMER.timerawh().read().bits();
@@ -67,6 +71,7 @@ fn main() -> ! {
 
         if (time - prev_time) > 250000 {
             prev_time = time;
+            // Use XOR instead of separate call to clr and set
             peripherals
                 .SIO
                 .gpio_out_xor()

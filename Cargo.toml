@@ -9,8 +9,12 @@ cortex-m-rt = "0.7.6"
 panic-halt = "1.0.0"
 rp2040-boot2 = "0.3"
 rp2040-pac = "0.6.0"
+embedded-hal = "1.0.0"
 
 [[bin]]
 name = "rp2040hal"
 test = false
 bench = false
+
+[[lib]]
+test = false
