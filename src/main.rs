@@ -12,7 +12,7 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use panic_halt as _;
 use rp2040_pac::{self};
-use rp2040hal::Gpio;
+use rp2040hal::{GpioNew, Output, Pin, Pins};
 
 // entry point after RAM initialization
 // NOTE: never ending function, returns !
@@ -32,8 +32,11 @@ fn main() -> ! {
     {}
 
     // TODO: Handle result of method
-    let mut led_pin: Gpio = Gpio::new(25, &peripherals);
-    let _ = led_pin.init();
+    let gpio: GpioNew = GpioNew::new(&peripherals);
+    let pins: Pins = gpio.split();
+    let mut led_pin: Pin<Output> = pins.gpio0.into_output();
+    // let mut led_pin: Gpio = Gpio::new(25, &peripherals);
+    // let _ = led_pin.init();
     let _ = led_pin.set_high();
 
     // Set the pin function to SIO (Single-Cycle I/O)
