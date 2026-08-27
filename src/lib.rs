@@ -2,7 +2,9 @@
 
 use core::marker::PhantomData;
 
-use embedded_hal::digital::{Error, ErrorKind, ErrorType, OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{
+    Error, ErrorKind, ErrorType, InputPin, OutputPin, PinState, StatefulOutputPin,
+};
 use rp2040_pac::Peripherals;
 use rp2040_pac::{IO_BANK0, SIO};
 
@@ -47,6 +49,12 @@ impl<'a> GpioNew<'a> {
                 sio: &self.sio,
                 io: &self.io,
             },
+            gpio2: Pin {
+                _mode: PhantomData::<Uninitialized>,
+                pin_num: 2,
+                sio: &self.sio,
+                io: &self.io,
+            },
         }
     }
 }
@@ -61,11 +69,11 @@ pub struct Pin<'a, MODE> {
 pub struct Pins<'a> {
     pub gpio0: Pin<'a, Uninitialized>,
     pub gpio1: Pin<'a, Uninitialized>,
+    pub gpio2: Pin<'a, Uninitialized>,
 }
 
 // TODO: fix initialization
 // TODO: see if there is a better way to handle lifetimes
-// TODO: implement input pins
 
 impl<'a> Pin<'a, Uninitialized> {
     pub fn into_output(self) -> Pin<'a, Output> {
@@ -77,6 +85,23 @@ impl<'a> Pin<'a, Uninitialized> {
         };
         pin.sio
             .gpio_oe_set()
+            .write(|w| unsafe { w.bits(1 << pin.pin_num) });
+        pin.io
+            .gpio(self.pin_num as usize)
+            .gpio_ctrl()
+            .write(|w| unsafe { w.funcsel().sio().bits(5) });
+        pin
+    }
+
+    pub fn into_input(self) -> Pin<'a, Input> {
+        let pin: Pin<Input> = Pin {
+            _mode: PhantomData::<Input>,
+            pin_num: self.pin_num,
+            sio: self.sio,
+            io: self.io,
+        };
+        pin.sio
+            .gpio_oe_clr()
             .write(|w| unsafe { w.bits(1 << pin.pin_num) });
         pin.io
             .gpio(self.pin_num as usize)
@@ -99,7 +124,13 @@ impl<'a> OutputPin for Pin<'a, Output> {
             .gpio_out_clr()
             .write(|w| unsafe { w.bits(1 << self.pin_num) }))
     }
-    // fn set_state(&mut self, state: embedded_hal::digital::PinState) -> Result<(), Self::Error> {}
+    fn set_state(&mut self, state: embedded_hal::digital::PinState) -> Result<(), Self::Error> {
+        match state {
+            PinState::High => self.set_high(),
+            PinState::Low => self.set_low(),
+            _ => Err(GpioError::GPIO_ERR_UNKNOWN),
+        }
+    }
 }
 
 impl<'a> StatefulOutputPin for Pin<'a, Output> {
@@ -117,6 +148,15 @@ impl<'a> StatefulOutputPin for Pin<'a, Output> {
     }
 }
 
+impl<'a> InputPin for Pin<'a, Input> {
+    fn is_high(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.sio.gpio_in().read().bits() >> self.pin_num & 1 == 1)
+    }
+    fn is_low(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.sio.gpio_in().read().bits() >> self.pin_num & 1 == 0)
+    }
+}
+
 // Define error, for GPIO always default to Other type
 impl Error for GpioError {
     fn kind(&self) -> ErrorKind {
@@ -125,79 +165,6 @@ impl Error for GpioError {
 }
 
 // Define error type for GPIO as GpioError
-impl<'a> ErrorType for Pin<'a, Output> {
+impl<'a, T> ErrorType for Pin<'a, T> {
     type Error = GpioError;
 }
-
-/*
-// Borrow peripherals to write registers
-// Add lifetime for borrow
-pub struct Gpio<'a> {
-    peripherals: &'a Peripherals,
-    pin_num: u8,
-    initialized: bool,
-}
-
-// Self-defined methods
-impl<'a> Gpio<'a> {
-    pub fn new(pin_num: u8, peripherals: &'a Peripherals) -> Self {
-        Self {
-            pin_num: pin_num,
-            peripherals: peripherals,
-            initialized: false,
-        }
-    }
-    pub fn init(&mut self) -> Result<(), GpioError> {
-        match self.pin_num <= 29 {
-            true => {
-                self.peripherals
-                    .SIO
-                    .gpio_oe_set()
-                    .write(|w| unsafe { w.bits(1 << self.pin_num) });
-                self.peripherals
-                    .IO_BANK0
-                    .gpio(self.pin_num as usize)
-                    .gpio_ctrl()
-                    .write(|w| unsafe { w.funcsel().sio().bits(5) });
-                self.initialized = true;
-                Ok(())
-            }
-            false => Err(GpioError::GPIO_ERR_INV_PIN),
-        }
-    }
-}
-
-impl OutputPin for Gpio<'_> {
-    fn set_low(&mut self) -> Result<(), Self::Error> {
-        if !self.initialized {
-            return Err(GpioError::GPIO_ERR_NOT_INI);
-        }
-        Ok(self
-            .peripherals
-            .SIO
-            .gpio_out_clr()
-            .write(|w| unsafe { w.bits(1 << self.pin_num) }))
-    }
-    fn set_high(&mut self) -> Result<(), Self::Error> {
-        if !self.initialized {
-            return Err(GpioError::GPIO_ERR_NOT_INI);
-        }
-    }
-}
-
-impl StatefulOutputPin for Gpio<'_> {
-    fn is_set_high(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.peripherals.SIO.gpio_out().read().bits() >> self.pin_num & 1 == 1)
-    }
-    fn is_set_low(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.peripherals.SIO.gpio_out().read().bits() >> self.pin_num & 1 == 0)
-    }
-    fn toggle(&mut self) -> Result<(), Self::Error> {
-        Ok(self
-            .peripherals
-            .SIO
-            .gpio_out_xor()
-            .write(|w| unsafe { w.bits(1 << self.pin_num) }))
-    }
-}
-*/

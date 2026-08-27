@@ -9,10 +9,10 @@ pub static BOOT_LOADER: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
 // Halts processor on panic
 use cortex_m_rt::entry;
-use embedded_hal::digital::{OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{InputPin, OutputPin, PinState};
 use panic_halt as _;
 use rp2040_pac::{self};
-use rp2040hal::{GpioNew, Output, Pin, Pins};
+use rp2040hal::{GpioNew, Input, Output, Pin, Pins};
 
 // entry point after RAM initialization
 // NOTE: never ending function, returns !
@@ -31,30 +31,13 @@ fn main() -> ! {
         || peripherals.RESETS.reset_done().read().pads_bank0() == false
     {}
 
-    // TODO: Handle result of method
     let gpio: GpioNew = GpioNew::new(&peripherals);
     let pins: Pins = gpio.split();
     let mut led_pin: Pin<Output> = pins.gpio0.into_output();
-    // let mut led_pin: Gpio = Gpio::new(25, &peripherals);
-    // let _ = led_pin.init();
-    let _ = led_pin.set_high();
+    let mut out_pin: Pin<Output> = pins.gpio1.into_output();
+    let mut in_pin: Pin<Input> = pins.gpio2.into_input();
 
-    // Set the pin function to SIO (Single-Cycle I/O)
-    // peripherals
-    //     .IO_BANK0
-    //     .gpio(25)
-    //     .gpio_ctrl()
-    //     .write(|w| unsafe { w.funcsel().sio().bits(5) });
-    // // Enable output on pin
-    // peripherals
-    //     .SIO
-    //     .gpio_oe_set()
-    //     .write(|w| unsafe { w.bits(1 << 25) });
-    // // Write output value
-    // peripherals
-    //     .SIO
-    //     .gpio_out_set()
-    //     .write(|w| unsafe { w.bits(1 << 25) });
+    _ = out_pin.set_state(PinState::High);
 
     let mut timer_high: u32;
     let mut next_high: u32;
@@ -78,14 +61,14 @@ fn main() -> ! {
 
         time = ((timer_high as u64) << 32) | (timer_low as u64);
 
-        if (time - prev_time) > 250000 {
+        // Poll every 5 ms to check Input
+        if (time - prev_time) > 5000 {
             prev_time = time;
-            // Use XOR instead of separate call to clr and set
-            // peripherals
-            //     .SIO
-            //     .gpio_out_xor()
-            //     .write(|w| unsafe { w.bits(1 << 25) });
-            let _ = led_pin.toggle();
+            if let Ok(true) = in_pin.is_high() {
+                let _ = led_pin.set_high();
+            } else {
+                let _ = led_pin.set_low();
+            }
         }
     }
 }
